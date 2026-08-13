@@ -5,100 +5,136 @@ app = Flask(__name__)
 # Quản lý mức giảm giá từ Admin (Mặc định 15%)
 admin_settings = {"discount_percent": 15}
 
-# Danh sách giỏ hàng và đơn hàng
+# Danh sách giỏ hàng và danh sách đơn hàng đã đặt
 cart = []
 orders = []
 
-# --- GIAO DIỆN TRANG KHÁCH HÀNG ---
+# --- GIAO DIỆN TRANG KHÁCH HÀNG (GIỮ ĐẦY ĐỦ FORM CŨ + GIỎ HÀNG SHOPEE) ---
 CLIENT_HTML = """
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Đặt Hàng In 3D - Giỏ Hàng Shopee</title>
+    <title>In 3D - Giỏ Hàng & Khuyến Mãi</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; color: #333; }
-        .header { background: linear-gradient(135deg, #ee4d2d, #ff7337); color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; }
-        .banner-discount { background: #fff8e1; border: 1px dashed #ffa000; color: #ff8f00; padding: 12px; text-align: center; font-weight: bold; border-radius: 6px; margin-bottom: 20px; font-size: 16px; }
-        .container { display: flex; gap: 20px; max-width: 1200px; margin: 0 auto; }
-        .form-box { flex: 2; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .cart-box { flex: 1; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); height: fit-content; }
-        label { font-weight: 600; font-size: 13px; color: #555; display: block; margin-bottom: 6px; }
-        input, select { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        button { background: #ee4d2d; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; font-size: 15px; }
-        button:hover { background: #d73211; }
-        .cart-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding: 10px 0; font-size: 14px; }
-        .total-section { margin-top: 15px; border-top: 2px solid #eee; padding-top: 10px; }
-        .price-old { text-decoration: line-through; color: #888; font-size: 13px; }
-        .price-new { color: #ee4d2d; font-weight: bold; font-size: 20px; text-align: right; margin-top: 5px; }
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%); 
+            min-height: 100vh; 
+            margin: 0; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #fff;
+        }
+        .main-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 950px;
+        }
+        .card { 
+            background: rgba(255, 255, 255, 0.08); 
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 30px; 
+            border-radius: 16px; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4); 
+            flex: 1;
+        }
+        h2 { text-align: center; color: #fff; margin-top: 0; margin-bottom: 20px; font-size: 22px; }
+        label { font-weight: 500; font-size: 13px; color: #b0bec5; display: block; margin-bottom: 6px; }
+        input { 
+            width: 100%; padding: 10px 12px; margin-bottom: 12px; 
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2); 
+            border-radius: 8px; font-size: 14px; color: #fff;
+        }
+        input:focus { border-color: #64b5f6; outline: none; background: rgba(255, 255, 255, 0.1); }
+        .banner-discount { 
+            background: rgba(255, 152, 0, 0.2); border: 1px dashed #ffa726; color: #ffb74d; 
+            padding: 10px; text-align: center; font-weight: bold; border-radius: 8px; margin-bottom: 20px; font-size: 14px; 
+        }
+        .add-btn { 
+            width: 100%; padding: 12px; background: linear-gradient(135deg, #3498db, #2980b9); 
+            color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; 
+        }
+        .add-btn:hover { opacity: 0.9; }
+        .cart-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding: 8px 0; font-size: 13px; }
+        .price-old { text-decoration: line-through; color: #b0bec5; font-size: 12px; }
+        .price-new { color: #ff5252; font-size: 18px; font-weight: bold; }
+        .checkout-btn { 
+            width: 100%; padding: 12px; background: linear-gradient(135deg, #00b09b, #96c93d); 
+            color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 10px;
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🖨️ Dịch Vụ In 3D Theo Yêu Cầu</h1>
-        <p>Thêm sản phẩm vào giỏ hàng và áp dụng giảm giá tự động</p>
-    </div>
-
-    <!-- Thông báo mức giảm giá lấy trực tiếp từ Admin -->
-    <div class="banner-discount">
-        🔥 ĐANG KHUYẾN MÃI: Giảm ngay <strong>{{ discount }}%</strong> trên tổng đơn hàng hôm nay!
-    </div>
-
-    <div class="container">
-        <!-- Form điền thông tin sản phẩm in 3D -->
-        <div class="form-box">
-            <h2>📝 Nhập Yêu Cầu In 3D</h2>
+    <div class="main-container">
+        <!-- Cột trái: Form nhập yêu cầu cũ đầy đủ -->
+        <div class="card">
+            <h2>Gửi Yêu Cầu In 3D</h2>
+            
             <form action="/add-to-cart" method="POST">
-                <label>Tên mô hình / Vật phẩm:</label>
-                <input type="text" name="item_name" placeholder="VD: Bánh răng, Mô hình xe..." required>
+                <label>Họ và tên khách:</label>
+                <input type="text" name="customer_name" placeholder="Nhập họ tên của bạn" required>
+
+                <label>Số điện thoại:</label>
+                <input type="text" name="phone" placeholder="Nhập số điện thoại" required>
+
+                <label>Địa chỉ nhận hàng:</label>
+                <input type="text" name="address" placeholder="Nhập địa chỉ nhận hàng" required>
+
+                <label>Tên mô hình / Vật phẩm cần in:</label>
+                <input type="text" name="item_name" placeholder="VD: Mô hình nhân vật..." required>
 
                 <label>Màu sắc nhựa:</label>
-                <input type="text" name="color" placeholder="VD: Đỏ, Trắng, Đen, Xanh..." required>
+                <input type="text" name="color" placeholder="VD: Đỏ, Trắng, Đen..." required>
 
                 <label>Khối lượng ước tính (Gram):</label>
-                <input type="number" name="weight" placeholder="VD: 50 (Giá: 2.000đ/g)" step="0.1" required>
+                <input type="number" id="weight" name="weight" placeholder="VD: 50 (2.000đ/g)" step="0.1" required>
 
-                <label>Số lượng:</label>
-                <input type="number" name="quantity" value="1" min="1" required>
-
-                <button type="submit">🛒 Thêm Vào Giỏ Hàng</button>
+                <button type="submit" class="add-btn">➕ Thêm Vào Giỏ Hàng</button>
             </form>
         </div>
 
-        <!-- Giỏ hàng kiểu Shopee -->
-        <div class="cart-box">
-            <h2>🛍️ Giỏ Hàng Của Bạn</h2>
-            {% if cart %}
-                {% for item in cart %}
-                <div class="cart-item">
-                    <div>
-                        <strong>{{ item.item_name }}</strong> ({{ item.color }})<br>
-                        <small>{{ item.weight }}g x {{ item.quantity }} cái = {{"{:,.0f}".format(item.price)}} đ</small>
-                    </div>
-                    <div>
-                        <a href="/remove/{{ item.id }}" style="color: #e74c3c; text-decoration: none; font-weight: bold;">Xóa</a>
-                    </div>
-                </div>
-                {% endfor %}
+        <!-- Cột phải: Giỏ hàng kiểu Shopee + Khuyến mãi từ Admin -->
+        <div class="card">
+            <h2>🛒 Giỏ Hàng Shopee</h2>
 
-                <div class="total-section">
-                    <p>Tổng tiền gốc: <span class="price-old">{{"{:,.0f}".format(total_original)}} đ</span></p>
-                    <p>Được giảm giá ({{ discount }}%): <span style="color: #27ae60; font-weight: bold;">-{{"{:,.0f}".format(total_original * discount / 100)}} đ</span></p>
-                    <p>Thành tiền thanh toán:</p>
+            <div class="banner-discount">
+                🔥 Admin đang giảm: <strong>{{ discount }}%</strong>
+            </div>
+
+            {% if cart %}
+                <div style="max-height: 200px; overflow-y: auto; margin-bottom: 15px;">
+                    {% for item in cart %}
+                    <div class="cart-item">
+                        <div>
+                            <strong>{{ item.item_name }}</strong> ({{ item.color }})<br>
+                            <small>{{ item.weight }}g — {{"{:,.0f}".format(item.price)}} đ</small>
+                        </div>
+                        <div>
+                            <a href="/remove/{{ item.id }}" style="color: #ff5252; text-decoration: none; font-weight: bold;">Xóa</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div style="border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 10px;">
+                    <p style="margin: 5px 0;">Tổng tiền gốc: <span class="price-old">{{"{:,.0f}".format(total_original)}} đ</span></p>
+                    <p style="margin: 5px 0;">Được giảm ({{ discount }}%): <span style="color: #69f0ae;">-{{"{:,.0f}".format(total_original * discount / 100)}} đ</span></p>
+                    <p style="margin: 5px 0;">Thành tiền thanh toán:</p>
                     <div class="price-new">{{"{:,.0f}".format(total_final)}} đ</div>
                     
-                    <form action="/checkout" method="POST" style="margin-top: 15px;">
-                        <label>Họ tên người nhận:</label>
-                        <input type="text" name="customer_name" placeholder="Nhập họ tên" required style="margin-bottom: 8px;">
-                        
-                        <label>Số điện thoại:</label>
-                        <input type="text" name="phone" placeholder="Nhập SĐT" required style="margin-bottom: 12px;">
-                        
-                        <button type="submit" style="background: #26aa99;">ĐẶT HÀNG NGAY</button>
+                    <form action="/checkout" method="POST">
+                        <button type="submit" class="checkout-btn">ĐẶT HÀNG NGAY</button>
                     </form>
                 </div>
             {% else %}
-                <p style="color: #888; text-align: center; margin-top: 30px;">Giỏ hàng của bạn đang trống.</p>
+                <p style="color: #b0bec5; text-align: center; margin-top: 40px;">Giỏ hàng của bạn đang trống.</p>
             {% endif %}
         </div>
     </div>
@@ -115,9 +151,9 @@ ADMIN_HTML = """
     <title>Trang Quản Trị Admin</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 30px; }
-        .box { background: white; padding: 25px; border-radius: 8px; max-width: 1000px; margin: 0 auto 20px auto; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .box { background: white; padding: 25px; border-radius: 8px; max-width: 1100px; margin: 0 auto 20px auto; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         h2 { color: #333; margin-top: 0; }
-        input { padding: 8px; width: 220px; border: 1px solid #ccc; border-radius: 4px; }
+        input { padding: 8px; width: 200px; border: 1px solid #ccc; border-radius: 4px; }
         button { padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; }
@@ -135,11 +171,12 @@ ADMIN_HTML = """
     </div>
 
     <div class="box">
-        <h2>📋 Quản Lý Đơn Hàng Đã Đặt</h2>
+        <h2>📋 Quản Lý Danh Sách Đơn Đặt Hàng</h2>
         <table>
             <tr>
                 <th>Khách hàng</th>
                 <th>SĐT</th>
+                <th>Địa chỉ</th>
                 <th>Sản phẩm đặt in</th>
                 <th>Thành tiền (Đã giảm)</th>
             </tr>
@@ -147,11 +184,12 @@ ADMIN_HTML = """
             <tr>
                 <td>{{ o.name }}</td>
                 <td>{{ o.phone }}</td>
+                <td>{{ o.address }}</td>
                 <td>{{ o.details }}</td>
                 <td style="color: #e74c3c; font-weight: bold;">{{"{:,.0f}".format(o.total)}} đ</td>
             </tr>
             {% else %}
-            <tr><td colspan="4" style="text-align: center; color: #888; padding: 20px;">Chưa có đơn hàng nào.</td></tr>
+            <tr><td colspan="5" style="text-align: center; color: #888; padding: 20px;">Chưa có đơn hàng nào.</td></tr>
             {% endfor %}
         </table>
     </div>
@@ -177,20 +215,24 @@ def index():
 
 @app.route("/add-to-cart", methods=["POST"])
 def add_to_cart():
+  global customer_info
+  # Lưu tạm thông tin khách hàng vào session/biến toàn cục để dùng khi checkout
+  app.config["TEMP_CUSTOMER"] = {
+      "name": request.form.get("customer_name"),
+      "phone": request.form.get("phone"),
+      "address": request.form.get("address"),
+  }
+
   item_name = request.form.get("item_name")
   color = request.form.get("color")
   weight = float(request.form.get("weight", 0))
-  quantity = int(request.form.get("quantity", 1))
-
-  # Tính giá: 2.000đ mỗi gram * số lượng
-  price = weight * 2000 * quantity
+  price = weight * 2000  # 2.000đ / gram
 
   new_item = {
       "id": len(cart) + 1,
       "item_name": item_name,
       "color": color,
       "weight": weight,
-      "quantity": quantity,
       "price": price,
   }
   cart.append(new_item)
@@ -206,21 +248,25 @@ def remove_from_cart(item_id):
 
 @app.route("/checkout", methods=["POST"])
 def checkout():
-  name = request.form.get("customer_name")
-  phone = request.form.get("phone")
+  info = app.config.get(
+      "TEMP_CUSTOMER", {"name": "Khách lẻ", "phone": "Không có", "address": "Không có"}
+  )
 
   total_original = sum(item["price"] for item in cart)
   discount = admin_settings["discount_percent"]
   total_final = total_original - (total_original * discount / 100)
 
-  # Gom tên các sản phẩm lại thành một chuỗi ghi chú đơn hàng
-  details = ", ".join(
-      [f"{i['item_name']} ({i['quantity']} cái)" for i in cart]
-  )
+  details = ", ".join([f"{i['item_name']} ({i['weight']}g)" for i in cart])
 
   if cart:
-    orders.append({"name": name, "phone": phone, "details": details, "total": total_final})
-    cart.clear()  # Đặt hàng thành công thì xóa sạch giỏ hàng
+    orders.append({
+        "name": info["name"],
+        "phone": info["phone"],
+        "address": info["address"],
+        "details": details,
+        "total": total_final,
+    })
+    cart.clear()
 
   return redirect(url_for("index"))
 
